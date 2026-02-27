@@ -3,6 +3,7 @@ from discord.ext import commands
 import json
 import os
 import asyncio
+import time
 from datetime import datetime
 
 # =========================
@@ -11,6 +12,9 @@ from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
 FICHIER = "fiches.json"
+
+COOLDOWN_DURATION = 3 * 60 * 60  # 3 heures
+cooldowns = {}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -109,9 +113,6 @@ class ValidateInscriptionView(discord.ui.View):
         super().__init__(timeout=None)
         self.member = member
 
-    # =========================
-    # ACCEPTER
-    # =========================
     @discord.ui.button(label="📊 Accepter l'inscription", style=discord.ButtonStyle.green)
     async def validate(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -134,21 +135,16 @@ class ValidateInscriptionView(discord.ui.View):
             sauvegarder_fiches(fiches)
 
         try:
-            await self.member.send("🎉 Ton inscription à l'académie a été ACCEPTÉE !")
+            await self.member.send("🎉 Ton inscription a été ACCEPTÉE !")
         except:
             pass
 
-        await interaction.response.send_message(
-            f"✅ Inscription acceptée pour {self.member.mention}"
-        )
+        await interaction.response.send_message(f"✅ Inscription acceptée pour {self.member.mention}")
 
         await interaction.channel.send("🔒 Fermeture du ticket dans 3 secondes...")
         await asyncio.sleep(3)
         await interaction.channel.delete()
 
-    # =========================
-    # REFUSER
-    # =========================
     @discord.ui.button(label="❌ Refuser l'inscription", style=discord.ButtonStyle.danger)
     async def refuse(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -157,7 +153,7 @@ class ValidateInscriptionView(discord.ui.View):
             return
 
         await interaction.response.send_message(
-            "📝 Merci d'écrire le MOTIF du refus dans ce salon (60 secondes).",
+            "📝 Écris le MOTIF du refus dans ce salon (5 minutes).",
             ephemeral=True
         )
 
@@ -165,16 +161,14 @@ class ValidateInscriptionView(discord.ui.View):
             return m.author == interaction.user and m.channel == interaction.channel
 
         try:
-            msg = await bot.wait_for("message", timeout=60.0, check=check)
+            msg = await bot.wait_for("message", timeout=300.0, check=check)
             motif = msg.content
         except:
             await interaction.followup.send("❌ Temps écoulé. Refus annulé.")
             return
 
         try:
-            await self.member.send(
-                f"❌ Ton inscription a été REFUSÉE.\n\n📌 Motif : {motif}"
-            )
+            await self.member.send(f"❌ Ton inscription a été REFUSÉE.\n\n📌 Motif : {motif}")
         except:
             pass
 
@@ -192,12 +186,10 @@ class TicketSelect(discord.ui.Select):
             discord.SelectOption(label="Demande Staff", emoji="👨‍🏫"),
             discord.SelectOption(label="Inscription Académique", emoji="📊")
         ]
-        super().__init__(
-            placeholder="Choisis le type de ticket...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+        super().__init__(placeholder="Choisis le type de ticket...",
+                         min_values=1,
+                         max_values=1,
+                         options=options)
 
     async def callback(self, interaction: discord.Interaction):
 
@@ -205,7 +197,20 @@ class TicketSelect(discord.ui.Select):
         member = interaction.user
         staff_role = discord.utils.get(guild.roles, name="Staff")
 
-        # 🔎 Vérifie si un ticket existe déjà
+        now = time.time()
+
+        # Cooldown uniquement pour inscription
+        if member.id in cooldowns:
+            remaining = cooldowns[member.id] - now
+            if remaining > 0:
+                hours = int(remaining // 3600)
+                minutes = int((remaining % 3600) // 60)
+                await interaction.response.send_message(
+                    f"⏳ Tu dois attendre {hours}h {minutes}min avant une nouvelle inscription.",
+                    ephemeral=True
+                )
+                return
+
         existing_channel = discord.utils.get(
             guild.text_channels,
             name=f"ticket-{member.id}"
@@ -235,14 +240,17 @@ class TicketSelect(discord.ui.Select):
             overwrites=overwrites
         )
 
+        if self.values[0] == "Inscription Académique":
+            cooldowns[member.id] = now + COOLDOWN_DURATION
+
         if self.values[0] == "Demande Staff":
             await channel.send(
-                f"👨‍🏫 **Demande Staff**\n\n{member.mention}, quelle est ta demande ?",
+                f"👨‍🏫 Demande Staff\n\n{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
             )
         else:
             await channel.send(
-                f"📊 **Inscription Académique**\n\n"
+                f"📊 Inscription Académique\n\n"
                 f"• Rang actuel ?\n"
                 f"• Poste principal ?\n"
                 f"• Objectif ?\n"
@@ -250,7 +258,7 @@ class TicketSelect(discord.ui.Select):
                 view=ValidateInscriptionView(member)
             )
 
-        await interaction.response.send_message("✅ Ticket créé !", ephemeral=True) 
+        await interaction.response.send_message("✅ Ticket créé !", ephemeral=True)
 
 class TicketView(discord.ui.View):
     def __init__(self):
