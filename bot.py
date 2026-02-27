@@ -4,6 +4,10 @@ import json
 import os
 from datetime import datetime
 
+# =========================
+# CONFIG
+# =========================
+
 TOKEN = os.getenv("TOKEN")
 FICHIER = "fiches.json"
 
@@ -14,7 +18,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # =========================
-# JSON SYSTEM
+# SYSTEME JSON
 # =========================
 
 def charger_fiches():
@@ -36,7 +40,7 @@ async def on_ready():
     print(f"Bot connecté en tant que {bot.user}")
 
 # =========================
-# FICHE SYSTEM
+# FICHES JOUEURS
 # =========================
 
 @bot.command()
@@ -135,10 +139,12 @@ class TicketSelect(discord.ui.Select):
             discord.SelectOption(label="Demande de Staff", emoji="👨‍🏫"),
             discord.SelectOption(label="Inscription Académique", emoji="📊")
         ]
-        super().__init__(placeholder="Choisis le type de ticket...",
-                         min_values=1,
-                         max_values=1,
-                         options=options)
+        super().__init__(
+            placeholder="Choisis le type de ticket...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
 
     async def callback(self, interaction: discord.Interaction):
 
@@ -165,8 +171,7 @@ class TicketSelect(discord.ui.Select):
 
         if self.values[0] == "Demande de Staff":
             await channel.send(
-                f"👨‍🏫 **Demande Staff**\n\n"
-                f"{member.mention}, quelle est ta demande ?",
+                f"👨‍🏫 **Demande Staff**\n\n{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
             )
         else:
@@ -191,17 +196,16 @@ class TicketView(discord.ui.View):
 async def ticketpanel(ctx):
     embed = discord.Embed(
         title="🎟 Support Académique",
-        description="Merci de sélectionner le type de demande ci-dessous.",
+        description="Merci de sélectionner le type de demande.",
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
 
 # =========================
-# STRUCTURE (SAFE)
+# CREATION STRUCTURE
 # =========================
 
 @bot.command()
-@commands.has_role("Directeur FLTA")
 async def setupstructure(ctx):
 
     guild = ctx.guild
@@ -210,9 +214,16 @@ async def setupstructure(ctx):
         await ctx.send("❌ Structure déjà existante.")
         return
 
-    await guild.create_category("🧾 STAFF – Administratif")
-    await guild.create_category("🎯 STAFF – Opérationnel")
-    await guild.create_category("🎓 PROFESSEURS – Pôle pédagogique")
+    admin_cat = await guild.create_category("🧾 STAFF – Administratif")
+    await guild.create_text_channel("👑 direction-interne", category=admin_cat)
+    await guild.create_text_channel("🧾 gestion-académie", category=admin_cat)
+
+    op_cat = await guild.create_category("🎯 STAFF – Opérationnel")
+    await guild.create_text_channel("💬 coordination", category=op_cat)
+    await guild.create_text_channel("📊 suivi-joueurs", category=op_cat)
+
+    prof_cat = await guild.create_category("🎓 PROFESSEURS – Pôle pédagogique")
+    await guild.create_text_channel("💬 pôle-pédagogique", category=prof_cat)
 
     await ctx.send("✅ Structure créée.")
 
@@ -221,7 +232,6 @@ async def setupstructure(ctx):
 # =========================
 
 @bot.command()
-@commands.has_role("Directeur FLTA")
 async def setupvocaux(ctx):
 
     guild = ctx.guild
@@ -232,23 +242,12 @@ async def setupvocaux(ctx):
 
     dir_cat = await guild.create_category("👑 DIRECTION – Réunions")
     await guild.create_voice_channel("🎙 direction-réunion", category=dir_cat)
-    await guild.create_voice_channel("🔒 direction-privé", category=dir_cat)
 
     prof_cat = await guild.create_category("🎓 PROF – Réunions & Coaching")
     await guild.create_voice_channel("🎙 salle-professeurs", category=prof_cat)
-    await guild.create_voice_channel("🎙 coaching-1", category=prof_cat)
-    await guild.create_voice_channel("🎙 coaching-2", category=prof_cat)
 
     await ctx.send("✅ Vocaux créés.")
 
 # =========================
-# REUNION
-# =========================
-
-@bot.command()
-@commands.has_role("Directeur FLTA")
-async def reunion(ctx, nom: str):
-    channel = await ctx.guild.create_voice_channel(f"🗓 réunion-{nom}")
-    await ctx.send(f"🎙 Salon réunion créé : {channel.name}")
 
 bot.run(TOKEN)
