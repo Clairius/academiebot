@@ -227,7 +227,7 @@ class TicketView(discord.ui.View):
 @commands.has_role("Staff")
 async def ticketpanel(ctx):
     embed = discord.Embed(
-        title="🎟 Académie Clairius2",
+        title="🎟 Administration Académie",
         description="Choisis le type de demande.",
         color=discord.Color.gold()
     )
