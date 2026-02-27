@@ -108,7 +108,8 @@ class ValidateInscriptionView(discord.ui.View):
         super().__init__(timeout=None)
         self.member = member
 
-    @discord.ui.button(label="📊 Valider inscription", style=discord.ButtonStyle.green)
+    # ✅ ACCEPTER
+    @discord.ui.button(label="📊 Accepter l'inscription", style=discord.ButtonStyle.green)
     async def validate(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if "Staff" not in [r.name for r in interaction.user.roles]:
@@ -125,18 +126,43 @@ class ValidateInscriptionView(discord.ui.View):
                 "poste": "",
                 "points_forts": "",
                 "points_faibles": "",
-                "maj": f"Validé par {interaction.user.name}"
+                "maj": f"Validé par {interaction.user.name} le {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             }
             sauvegarder_fiches(fiches)
 
+        try:
+            await self.member.send("🎉 Ton inscription à l'académie a été ACCEPTÉE !")
+        except:
+            pass
+
         await interaction.response.send_message(
-            f"✅ Inscription validée et fiche créée pour {self.member.mention}"
+            f"✅ Inscription acceptée pour {self.member.mention}"
+        )
+
+    # ❌ REFUSER
+    @discord.ui.button(label="❌ Refuser l'inscription", style=discord.ButtonStyle.danger)
+    async def refuse(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if "Staff" not in [r.name for r in interaction.user.roles]:
+            await interaction.response.send_message("❌ Réservé au Staff.", ephemeral=True)
+            return
+
+        try:
+            await self.member.send(
+                "❌ Ton inscription à l'académie a été REFUSÉE.\n"
+                "Tu peux réessayer plus tard ou contacter le staff."
+            )
+        except:
+            pass
+
+        await interaction.response.send_message(
+            f"❌ Inscription refusée pour {self.member.mention}"
         )
 
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="Demande de Staff", emoji="👨‍🏫"),
+            discord.SelectOption(label="Demande Staff", emoji="👨‍🏫"),
             discord.SelectOption(label="Inscription Académique", emoji="📊")
         ]
         super().__init__(
@@ -169,7 +195,7 @@ class TicketSelect(discord.ui.Select):
             overwrites=overwrites
         )
 
-        if self.values[0] == "Demande de Staff":
+        if self.values[0] == "Demande Staff":
             await channel.send(
                 f"👨‍🏫 **Demande Staff**\n\n{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
@@ -192,7 +218,6 @@ class TicketView(discord.ui.View):
         self.add_item(TicketSelect())
 
 @bot.command()
-@commands.has_role("Staff")
 async def ticketpanel(ctx):
     embed = discord.Embed(
         title="🎟 Support Académique",
@@ -200,53 +225,6 @@ async def ticketpanel(ctx):
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
-
-# =========================
-# CREATION STRUCTURE
-# =========================
-
-@bot.command()
-async def setupstructure(ctx):
-
-    guild = ctx.guild
-
-    if discord.utils.get(guild.categories, name="🧾 STAFF – Administratif"):
-        await ctx.send("❌ Structure déjà existante.")
-        return
-
-    admin_cat = await guild.create_category("🧾 STAFF – Administratif")
-    await guild.create_text_channel("👑 direction-interne", category=admin_cat)
-    await guild.create_text_channel("🧾 gestion-académie", category=admin_cat)
-
-    op_cat = await guild.create_category("🎯 STAFF – Opérationnel")
-    await guild.create_text_channel("💬 coordination", category=op_cat)
-    await guild.create_text_channel("📊 suivi-joueurs", category=op_cat)
-
-    prof_cat = await guild.create_category("🎓 PROFESSEURS – Pôle pédagogique")
-    await guild.create_text_channel("💬 pôle-pédagogique", category=prof_cat)
-
-    await ctx.send("✅ Structure créée.")
-
-# =========================
-# VOCAUX
-# =========================
-
-@bot.command()
-async def setupvocaux(ctx):
-
-    guild = ctx.guild
-
-    if discord.utils.get(guild.categories, name="👑 DIRECTION – Réunions"):
-        await ctx.send("❌ Vocaux déjà existants.")
-        return
-
-    dir_cat = await guild.create_category("👑 DIRECTION – Réunions")
-    await guild.create_voice_channel("🎙 direction-réunion", category=dir_cat)
-
-    prof_cat = await guild.create_category("🎓 PROF – Réunions & Coaching")
-    await guild.create_voice_channel("🎙 salle-professeurs", category=prof_cat)
-
-    await ctx.send("✅ Vocaux créés.")
 
 # =========================
 
