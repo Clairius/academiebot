@@ -205,6 +205,19 @@ class TicketSelect(discord.ui.Select):
         member = interaction.user
         staff_role = discord.utils.get(guild.roles, name="Staff")
 
+        # 🔎 Vérifie si un ticket existe déjà
+        existing_channel = discord.utils.get(
+            guild.text_channels,
+            name=f"ticket-{member.id}"
+        )
+
+        if existing_channel:
+            await interaction.response.send_message(
+                "❌ Tu as déjà un ticket ouvert.",
+                ephemeral=True
+            )
+            return
+
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             member: discord.PermissionOverwrite(view_channel=True),
@@ -217,19 +230,19 @@ class TicketSelect(discord.ui.Select):
             category = await guild.create_category("🎟 Tickets")
 
         channel = await guild.create_text_channel(
-            f"ticket-{member.name}",
+            f"ticket-{member.id}",
             category=category,
             overwrites=overwrites
         )
 
         if self.values[0] == "Demande Staff":
             await channel.send(
-                f"👨‍🏫 Demande Staff\n\n{member.mention}, quelle est ta demande ?",
+                f"👨‍🏫 **Demande Staff**\n\n{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
             )
         else:
             await channel.send(
-                f"📊 Inscription Académique\n\n"
+                f"📊 **Inscription Académique**\n\n"
                 f"• Rang actuel ?\n"
                 f"• Poste principal ?\n"
                 f"• Objectif ?\n"
@@ -237,7 +250,7 @@ class TicketSelect(discord.ui.Select):
                 view=ValidateInscriptionView(member)
             )
 
-        await interaction.response.send_message("✅ Ticket créé !", ephemeral=True)
+        await interaction.response.send_message("✅ Ticket créé !", ephemeral=True) 
 
 class TicketView(discord.ui.View):
     def __init__(self):
