@@ -201,8 +201,66 @@ async def ticketpanel(ctx):
     await ctx.send(embed=embed, view=TicketView())
 
 # =========================
-# REUNION TEMPORAIRE
+# STRUCTURE + VOCAUX + REUNION
 # =========================
+
+@bot.command()
+@commands.has_role("Directeur FLTA")
+async def setupstructure(ctx):
+
+    guild = ctx.guild
+
+    direction_roles = ["Directeur FLTA", "Directeur académie", "responsable pédagogique"]
+    staff_roles = ["staff"]
+    prof_roles = ["profféseur principal", "professeur", "analyste pédagigique", "tuteur"]
+
+    direction_objs = [discord.utils.get(guild.roles, name=r) for r in direction_roles]
+    staff_objs = [discord.utils.get(guild.roles, name=r) for r in staff_roles]
+    prof_objs = [discord.utils.get(guild.roles, name=r) for r in prof_roles]
+
+    # ADMIN
+    admin_overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+    for role in direction_objs + staff_objs:
+        if role:
+            admin_overwrites[role] = discord.PermissionOverwrite(view_channel=True)
+
+    admin_category = await guild.create_category("🧾 STAFF – Administratif", overwrites=admin_overwrites)
+    await guild.create_text_channel("👑 direction-interne", category=admin_category)
+
+    # OPERATIONNEL
+    op_overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+    for role in direction_objs + staff_objs + prof_objs:
+        if role:
+            op_overwrites[role] = discord.PermissionOverwrite(view_channel=True)
+
+    op_category = await guild.create_category("🎯 STAFF – Opérationnel", overwrites=op_overwrites)
+
+    # PROF
+    prof_overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+    for role in direction_objs + prof_objs:
+        if role:
+            prof_overwrites[role] = discord.PermissionOverwrite(view_channel=True)
+
+    prof_category = await guild.create_category("🎓 PROFESSEURS – Pôle pédagogique", overwrites=prof_overwrites)
+
+    await ctx.send("✅ Structure créée.")
+
+@bot.command()
+@commands.has_role("Directeur FLTA")
+async def setupvocaux(ctx):
+
+    guild = ctx.guild
+
+    dir_category = await guild.create_category("👑 DIRECTION – Réunions")
+    await guild.create_voice_channel("🎙 direction-réunion", category=dir_category)
+    await guild.create_voice_channel("🔒 direction-privé", category=dir_category)
+
+    prof_category = await guild.create_category("🎓 PROF – Réunions & Coaching")
+    await guild.create_voice_channel("🎙 salle-professeurs", category=prof_category)
+    await guild.create_voice_channel("🎙 coaching-1", category=prof_category)
+    await guild.create_voice_channel("🎙 coaching-2", category=prof_category)
+
+    await ctx.send("✅ Vocaux créés.")
 
 @bot.command()
 @commands.has_role("Directeur FLTA")
