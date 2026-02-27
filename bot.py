@@ -45,29 +45,6 @@ async def on_ready():
 
 @bot.command()
 @commands.has_role("Staff")
-async def fiche(ctx, member: discord.Member):
-
-    fiches = charger_fiches()
-
-    if str(member.id) in fiches:
-        await ctx.send("❌ Ce joueur a déjà une fiche.")
-        return
-
-    fiches[str(member.id)] = {
-        "prof": ctx.author.name,
-        "rang": "",
-        "objectif": "",
-        "poste": "",
-        "points_forts": "",
-        "points_faibles": "",
-        "maj": f"Créée par {ctx.author.name} le {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-    }
-
-    sauvegarder_fiches(fiches)
-    await ctx.send(f"📊 Fiche créée pour {member.mention}")
-
-@bot.command()
-@commands.has_role("Staff")
 async def majfiche(ctx, member: discord.Member, champ: str, *, valeur: str):
 
     fiches = charger_fiches()
@@ -122,9 +99,6 @@ async def voirfiche(ctx, member: discord.Member):
 # =========================
 
 class CloseTicketView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
     @discord.ui.button(label="🔒 Fermer le ticket", style=discord.ButtonStyle.red)
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.channel.delete()
@@ -153,7 +127,6 @@ class ValidateInscriptionView(discord.ui.View):
                 "points_faibles": "",
                 "maj": f"Validé par {interaction.user.name}"
             }
-
             sauvegarder_fiches(fiches)
 
         await interaction.response.send_message(
@@ -166,13 +139,10 @@ class TicketSelect(discord.ui.Select):
             discord.SelectOption(label="Demande de Staff", emoji="👨‍🏫"),
             discord.SelectOption(label="Inscription Académique", emoji="📊")
         ]
-
-        super().__init__(
-            placeholder="Choisis le type de ticket...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+        super().__init__(placeholder="Choisis le type de ticket...",
+                         min_values=1,
+                         max_values=1,
+                         options=options)
 
     async def callback(self, interaction: discord.Interaction):
 
@@ -199,19 +169,17 @@ class TicketSelect(discord.ui.Select):
 
         if self.values[0] == "Demande de Staff":
             await channel.send(
-                "👨‍🏫 **Demande Staff**\n\n"
-                "• Motivation ?\n"
-                "• Expérience ?\n"
-                "• Disponibilité ?",
+                f"👨‍🏫 **Demande Staff**\n\n"
+                f"{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
             )
         else:
             await channel.send(
-                "📊 **Inscription Académique**\n\n"
-                "• Rang actuel ?\n"
-                "• Poste principal ?\n"
-                "• Objectif ?\n"
-                "• Games/semaine ?",
+                f"📊 **Inscription Académique**\n\n"
+                f"• Rang actuel ?\n"
+                f"• Poste principal ?\n"
+                f"• Objectif ?\n"
+                f"• Games/semaine ?",
                 view=ValidateInscriptionView(member)
             )
 
@@ -231,5 +199,16 @@ async def ticketpanel(ctx):
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
+
+# =========================
+# REUNION TEMPORAIRE
+# =========================
+
+@bot.command()
+@commands.has_role("Directeur FLTA")
+async def reunion(ctx, nom: str):
+    guild = ctx.guild
+    channel = await guild.create_voice_channel(f"🗓 réunion-{nom}")
+    await ctx.send(f"🎙 Salon réunion créé : {channel.name}")
 
 bot.run(TOKEN)
