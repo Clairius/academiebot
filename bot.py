@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import json
 import os
+import asyncio
 from datetime import datetime
 
 # =========================
@@ -108,7 +109,9 @@ class ValidateInscriptionView(discord.ui.View):
         super().__init__(timeout=None)
         self.member = member
 
-    # ✅ ACCEPTER
+    # =========================
+    # ACCEPTER
+    # =========================
     @discord.ui.button(label="📊 Accepter l'inscription", style=discord.ButtonStyle.green)
     async def validate(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -139,7 +142,13 @@ class ValidateInscriptionView(discord.ui.View):
             f"✅ Inscription acceptée pour {self.member.mention}"
         )
 
-    # ❌ REFUSER
+        await interaction.channel.send("🔒 Fermeture du ticket dans 3 secondes...")
+        await asyncio.sleep(3)
+        await interaction.channel.delete()
+
+    # =========================
+    # REFUSER
+    # =========================
     @discord.ui.button(label="❌ Refuser l'inscription", style=discord.ButtonStyle.danger)
     async def refuse(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -147,17 +156,35 @@ class ValidateInscriptionView(discord.ui.View):
             await interaction.response.send_message("❌ Réservé au Staff.", ephemeral=True)
             return
 
+        await interaction.response.send_message(
+            "📝 Merci d'écrire le MOTIF du refus dans ce salon (60 secondes).",
+            ephemeral=True
+        )
+
+        def check(m):
+            return m.author == interaction.user and m.channel == interaction.channel
+
+        try:
+            msg = await bot.wait_for("message", timeout=60.0, check=check)
+            motif = msg.content
+        except:
+            await interaction.followup.send("❌ Temps écoulé. Refus annulé.")
+            return
+
         try:
             await self.member.send(
-                "❌ Ton inscription à l'académie a été REFUSÉE.\n"
-                "Tu peux réessayer plus tard ou contacter le staff."
+                f"❌ Ton inscription a été REFUSÉE.\n\n📌 Motif : {motif}"
             )
         except:
             pass
 
-        await interaction.response.send_message(
-            f"❌ Inscription refusée pour {self.member.mention}"
+        await interaction.followup.send(
+            f"❌ Inscription refusée pour {self.member.mention}\n📌 Motif : {motif}"
         )
+
+        await interaction.channel.send("🔒 Fermeture du ticket dans 3 secondes...")
+        await asyncio.sleep(3)
+        await interaction.channel.delete()
 
 class TicketSelect(discord.ui.Select):
     def __init__(self):
@@ -197,12 +224,12 @@ class TicketSelect(discord.ui.Select):
 
         if self.values[0] == "Demande Staff":
             await channel.send(
-                f"👨‍🏫 **Demande Staff**\n\n{member.mention}, quelle est ta demande ?",
+                f"👨‍🏫 Demande Staff\n\n{member.mention}, quelle est ta demande ?",
                 view=CloseTicketView()
             )
         else:
             await channel.send(
-                f"📊 **Inscription Académique**\n\n"
+                f"📊 Inscription Académique\n\n"
                 f"• Rang actuel ?\n"
                 f"• Poste principal ?\n"
                 f"• Objectif ?\n"
@@ -225,7 +252,5 @@ async def ticketpanel(ctx):
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
-
-# =========================
 
 bot.run(TOKEN)
