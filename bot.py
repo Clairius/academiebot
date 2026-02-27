@@ -133,4 +133,4 @@ async def voirfiche(ctx, member: discord.Member):
 
 # =========================
 
-bot.run("")
+bot.run(TOKEN)
