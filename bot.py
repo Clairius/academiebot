@@ -71,7 +71,6 @@ async def fiche(ctx, member: discord.Member):
 async def majfiche(ctx, member: discord.Member, champ: str, *, valeur: str):
 
     fiches = charger_fiches()
-
     champs_valides = ["rang", "objectif", "poste", "points_forts", "points_faibles"]
 
     if str(member.id) not in fiches:
@@ -200,19 +199,19 @@ class TicketSelect(discord.ui.Select):
 
         if self.values[0] == "Demande de Staff":
             await channel.send(
-                f"👨‍🏫 Demande Staff\n\n"
-                f"• Motivation ?\n"
-                f"• Expérience ?\n"
-                f"• Disponibilité ?",
+                "👨‍🏫 **Demande Staff**\n\n"
+                "• Motivation ?\n"
+                "• Expérience ?\n"
+                "• Disponibilité ?",
                 view=CloseTicketView()
             )
         else:
             await channel.send(
-                f"📊 Inscription Académique\n\n"
-                f"• Rang actuel ?\n"
-                f"• Poste principal ?\n"
-                f"• Objectif ?\n"
-                f"• Games/semaine ?",
+                "📊 **Inscription Académique**\n\n"
+                "• Rang actuel ?\n"
+                "• Poste principal ?\n"
+                "• Objectif ?\n"
+                "• Games/semaine ?",
                 view=ValidateInscriptionView(member)
             )
 
@@ -227,8 +226,8 @@ class TicketView(discord.ui.View):
 @commands.has_role("Staff")
 async def ticketpanel(ctx):
     embed = discord.Embed(
-        title="🎟 Administration Académie",
-        description="Choisis le type de demande.",
+        title="🎟 Support Académique",
+        description="Merci de sélectionner le type de demande ci-dessous.",
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
