@@ -13,7 +13,7 @@ from datetime import datetime
 TOKEN = os.getenv("TOKEN")
 FICHIER = "fiches.json"
 
-COOLDOWN_DURATION = 3 * 60 * 60
+ACADEMIE_COOLDOWN = 3 * 60 * 60
 ESPORT_COOLDOWN = 24 * 60 * 60
 
 intents = discord.Intents.default()
@@ -23,7 +23,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # =========================
-# SYSTEME JSON
+# JSON
 # =========================
 
 def charger_fiches():
@@ -45,20 +45,20 @@ def sauvegarder_fiches(data):
 
 @bot.event
 async def on_ready():
-    print(f"Bot connecté en tant que {bot.user}")
+    print(f"Connecté en tant que {bot.user}")
 
 # =========================
-# RAPPORT EQUIPE SECURISE
+# RAPPORT EQUIPE
 # =========================
 
 @bot.command()
 async def rapport(ctx, equipe: discord.Role = None, *, contenu: str = None):
 
     if equipe is None or contenu is None:
-        await ctx.send("❌ Utilisation : `!rapport @NomEquipe contenu`")
+        await ctx.send("❌ Utilisation : !rapport @Equipe contenu")
         return
 
-    if not any(role.name == "Capitaine" for role in ctx.author.roles):
+    if not any(r.name == "Capitaine" for r in ctx.author.roles):
         await ctx.send("❌ Tu dois être Capitaine.")
         return
 
@@ -67,19 +67,19 @@ async def rapport(ctx, equipe: discord.Role = None, *, contenu: str = None):
         return
 
     guild = ctx.guild
-    direction_role = discord.utils.get(guild.roles, name="🎯 Direction Esport")
-    manager_role = discord.utils.get(guild.roles, name="📊 Manager")
+    direction = discord.utils.get(guild.roles, name="🎯 Direction Esport")
+    manager = discord.utils.get(guild.roles, name="📊 Manager")
 
-    rapport_channel = discord.utils.get(guild.text_channels, name="rapport")
+    channel = discord.utils.get(guild.text_channels, name="rapport")
 
-    if rapport_channel is None:
+    if channel is None:
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            direction_role: discord.PermissionOverwrite(view_channel=True),
-            manager_role: discord.PermissionOverwrite(view_channel=True),
+            direction: discord.PermissionOverwrite(view_channel=True),
+            manager: discord.PermissionOverwrite(view_channel=True),
             guild.me: discord.PermissionOverwrite(view_channel=True)
         }
-        rapport_channel = await guild.create_text_channel("rapport", overwrites=overwrites)
+        channel = await guild.create_text_channel("rapport", overwrites=overwrites)
 
     embed = discord.Embed(
         title=f"📋 Rapport - {equipe.name}",
@@ -87,15 +87,14 @@ async def rapport(ctx, equipe: discord.Role = None, *, contenu: str = None):
         timestamp=datetime.now()
     )
 
-    embed.add_field(name="🏷 Équipe", value=equipe.mention, inline=False)
-    embed.add_field(name="👤 Capitaine", value=ctx.author.mention, inline=False)
-    embed.add_field(name="📝 Contenu", value=contenu, inline=False)
+    embed.add_field(name="Capitaine", value=ctx.author.mention, inline=False)
+    embed.add_field(name="Contenu", value=contenu, inline=False)
 
-    await rapport_channel.send(embed=embed)
+    await channel.send(embed=embed)
     await ctx.send("✅ Rapport envoyé.")
 
 # =========================
-# INSCRIPTION TEAM ESPORT
+# INSCRIPTION ESPORT VIEW
 # =========================
 
 class ValidateEsportView(discord.ui.View):
@@ -123,30 +122,18 @@ class ValidateEsportView(discord.ui.View):
 
         fiches[user_id]["inscription_esport"] = "\n".join(messages[::-1])
         fiches[user_id]["statut_esport"] = "Accepté"
-        fiches[user_id]["maj"] = f"Validé le {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        fiches[user_id]["maj"] = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         sauvegarder_fiches(fiches)
 
-        try:
-            await self.member.send("🎮 Inscription Esport ACCEPTÉE.")
-        except:
-            pass
-
-        await interaction.response.send_message("✅ Validé.")
+        await interaction.response.send_message("✅ Inscription validée.")
         await asyncio.sleep(3)
         await interaction.channel.delete()
 
     @discord.ui.button(label="❌ Refuser", style=discord.ButtonStyle.danger)
     async def refuse(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        if "Staff" not in [r.name for r in interaction.user.roles]:
-            await interaction.response.send_message("❌ Staff uniquement.", ephemeral=True)
-            return
-
-        await interaction.response.send_message(
-            "📝 Écris le motif du refus (5 minutes).",
-            ephemeral=True
-        )
+        await interaction.response.send_message("📝 Écris le motif (5 minutes).", ephemeral=True)
 
         def check(m):
             return m.author == interaction.user and m.channel == interaction.channel
@@ -166,14 +153,9 @@ class ValidateEsportView(discord.ui.View):
 
         fiches[user_id]["statut_esport"] = "Refusé"
         fiches[user_id]["motif_refus_esport"] = motif
-        fiches[user_id]["maj"] = f"Refusé le {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        fiches[user_id]["maj"] = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         sauvegarder_fiches(fiches)
-
-        try:
-            await self.member.send(f"❌ Inscription refusée.\nMotif : {motif}")
-        except:
-            pass
 
         await interaction.followup.send("❌ Refus enregistré.")
         await asyncio.sleep(3)
@@ -186,13 +168,16 @@ class ValidateEsportView(discord.ui.View):
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
+            discord.SelectOption(label="Inscription Académique", emoji="📊"),
             discord.SelectOption(label="Inscription Team Esport", emoji="🔥"),
-            discord.SelectOption(label="Demande Staff", emoji="👨‍🏫"),
+            discord.SelectOption(label="Demande Staff", emoji="👨‍🏫")
         ]
-        super().__init__(placeholder="Choisis le type de ticket...",
-                         min_values=1,
-                         max_values=1,
-                         options=options)
+        super().__init__(
+            placeholder="Choisis une option",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
 
     async def callback(self, interaction: discord.Interaction):
 
@@ -202,42 +187,34 @@ class TicketSelect(discord.ui.Select):
         user_id = str(member.id)
         now = time.time()
 
-        # Cooldown Esport
-        if self.values[0] == "Inscription Team Esport":
+        if user_id not in fiches:
+            fiches[user_id] = {}
 
-            if user_id in fiches and "cooldown_esport" in fiches[user_id]:
+        # ===== Cooldown Académie =====
+        if self.values[0] == "Inscription Académique":
+            if "cooldown_academie" in fiches[user_id]:
+                remaining = fiches[user_id]["cooldown_academie"] - now
+                if remaining > 0:
+                    await interaction.response.send_message("⏳ Cooldown 3h actif.", ephemeral=True)
+                    return
+            fiches[user_id]["cooldown_academie"] = now + ACADEMIE_COOLDOWN
+
+        # ===== Cooldown Esport =====
+        if self.values[0] == "Inscription Team Esport":
+            if "cooldown_esport" in fiches[user_id]:
                 remaining = fiches[user_id]["cooldown_esport"] - now
                 if remaining > 0:
                     hours = int(remaining // 3600)
                     minutes = int((remaining % 3600) // 60)
-
                     try:
-                        await member.send(
-                            f"⏳ Tu dois attendre {hours}h {minutes}min avant de repostuler."
-                        )
+                        await member.send(f"⏳ Tu dois attendre {hours}h {minutes}min.")
                     except:
                         pass
-
-                    await interaction.response.send_message(
-                        "❌ Cooldown actif. Vérifie tes MP.",
-                        ephemeral=True
-                    )
+                    await interaction.response.send_message("❌ Cooldown actif. Vérifie tes MP.", ephemeral=True)
                     return
-
-            if user_id not in fiches:
-                fiches[user_id] = {}
-
             fiches[user_id]["cooldown_esport"] = now + ESPORT_COOLDOWN
-            sauvegarder_fiches(fiches)
 
-        existing_channel = discord.utils.get(
-            guild.text_channels,
-            name=f"ticket-{member.id}"
-        )
-
-        if existing_channel:
-            await interaction.response.send_message("❌ Ticket déjà ouvert.", ephemeral=True)
-            return
+        sauvegarder_fiches(fiches)
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -258,19 +235,17 @@ class TicketSelect(discord.ui.Select):
         if self.values[0] == "Inscription Team Esport":
             await channel.send(
                 "🔥 **Inscription Team Esport**\n\n"
-                "Réponds aux questions :\n"
-                "Pseudo en jeu :\n"
-                "Âge :\n"
-                "Rôle principal :\n"
-                "Rank + Peak :\n"
-                "OP.GG :\n"
-                "Disponibilités :\n"
-                "Expérience équipe :\n"
-                "Tournois ?\n"
-                "Pourquoi nous rejoindre ?\n"
-                "Objectif saison :",
+                "Pseudo :\nÂge :\nRôle principal :\nRank + Peak :\nOP.GG :\n"
+                "Disponibilités :\nExpérience équipe :\nTournois :\n"
+                "Pourquoi nous rejoindre ?\nObjectif saison :",
                 view=ValidateEsportView(member)
             )
+
+        elif self.values[0] == "Inscription Académique":
+            await channel.send("📊 **Inscription Académique**\n\nMerci de répondre aux questions.")
+
+        elif self.values[0] == "Demande Staff":
+            await channel.send(f"👨‍🏫 **Demande Staff**\n\n{member.mention} quel est ta demande ?")
 
         await interaction.response.send_message("✅ Ticket créé.", ephemeral=True)
 
@@ -283,13 +258,13 @@ class TicketView(discord.ui.View):
 async def ticketpanel(ctx):
     embed = discord.Embed(
         title="🎟 Support",
-        description="Sélectionne un type de ticket.",
+        description="Sélectionne une inscription",
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
 
 # =========================
-# LANCEMENT
+# START
 # =========================
 
 bot.run(TOKEN)
