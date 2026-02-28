@@ -13,7 +13,7 @@ from datetime import datetime
 TOKEN = os.getenv("TOKEN")
 FICHIER = "fiches.json"
 
-COOLDOWN_DURATION = 3 * 60 * 60  # 3 heures
+COOLDOWN_DURATION = 3 * 60 * 60
 cooldowns = {}
 
 intents = discord.Intents.default()
@@ -105,83 +105,50 @@ async def voirfiche(ctx, member: discord.Member):
     await ctx.send(embed=embed)
 
 # =========================
-# PANEL FICHES EQUIPES
+# RAPPORT EQUIPE
 # =========================
 
-class TeamSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="Equipe 1", emoji="🛡"),
-            discord.SelectOption(label="Equipe 2", emoji="⚔"),
-            discord.SelectOption(label="Equipe 3", emoji="🏆")
-        ]
-        super().__init__(
-            placeholder="Choisis une équipe...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+@bot.command(name="rapport")
+@commands.has_role("Capitaine")
+async def rapport(ctx, equipe: str, *, contenu: str):
 
-    async def callback(self, interaction: discord.Interaction):
+    guild = ctx.guild
 
-        fiches = charger_fiches()
+    direction_role = discord.utils.get(guild.roles, name="🎯 Direction Esport")
+    manager_role = discord.utils.get(guild.roles, name="📊 Manager")
 
-        if "equipes" not in fiches:
-            await interaction.response.send_message("❌ Aucune équipe configurée.", ephemeral=True)
-            return
+    if direction_role is None or manager_role is None:
+        await ctx.send("❌ Rôles Direction ou Manager introuvables.")
+        return
 
-        equipe_key = self.values[0].lower().replace(" ", "")
+    # Vérifie si le salon existe
+    rapport_channel = discord.utils.get(guild.text_channels, name="rapport")
 
-        if equipe_key not in fiches["equipes"]:
-            await interaction.response.send_message("❌ Équipe introuvable.", ephemeral=True)
-            return
-
-        data = fiches["equipes"][equipe_key]
-
-        joueurs_list = "\n".join(
-            [f"{i+1}. {j}" for i, j in enumerate(data.get("joueurs", []))]
-        ) or "Non défini"
-
-        embed = discord.Embed(
-            title=f"🏆 {data.get('nom', 'Equipe')}",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(name="📅 Date de création", value=data.get("date_creation", "Non défini"), inline=False)
-        embed.add_field(name="🎯 Objectif", value=data.get("objectif", "Non défini"), inline=False)
-        embed.add_field(name="👨‍🏫 Coach", value=data.get("coach", "Non défini"), inline=False)
-        embed.add_field(name="📋 Manager", value=data.get("manager", "Non défini"), inline=False)
-        embed.add_field(name="👥 Joueurs", value=joueurs_list, inline=False)
-        embed.add_field(name="ℹ Information sur l'équipe", value=data.get("info", "Non défini"), inline=False)
-        embed.set_footer(text=data.get("maj", ""))
-
-        await interaction.response.send_message(embed=embed)
-
-class TeamView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(TeamSelect())
-
-@bot.command()
-async def teampanel(ctx):
-
-    fiches = charger_fiches()
-
-    if "equipes" not in fiches:
-        fiches["equipes"] = {
-            "equipe1": {"nom":"Equipe 1","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""},
-            "equipe2": {"nom":"Equipe 2","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""},
-            "equipe3": {"nom":"Equipe 3","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""}
+    # Création automatique si inexistant
+    if rapport_channel is None:
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            direction_role: discord.PermissionOverwrite(view_channel=True),
+            manager_role: discord.PermissionOverwrite(view_channel=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True)
         }
-        sauvegarder_fiches(fiches)
+
+        rapport_channel = await guild.create_text_channel(
+            "rapport",
+            overwrites=overwrites
+        )
 
     embed = discord.Embed(
-        title="🏆 Fiches des Équipes",
-        description="Sélectionne une équipe pour voir sa fiche.",
-        color=discord.Color.blue()
+        title=f"📋 Rapport - {equipe}",
+        color=discord.Color.red(),
+        timestamp=datetime.now()
     )
 
-    await ctx.send(embed=embed, view=TeamView())
+    embed.add_field(name="👤 Capitaine", value=ctx.author.mention, inline=False)
+    embed.add_field(name="📝 Contenu", value=contenu, inline=False)
+
+    await rapport_channel.send(embed=embed)
+    await ctx.send("✅ Rapport envoyé avec succès.")
 
 # =========================
 # TICKET SYSTEM
@@ -246,19 +213,6 @@ class TicketSelect(discord.ui.Select):
         member = interaction.user
         staff_role = discord.utils.get(guild.roles, name="Staff")
 
-        now = time.time()
-
-        if member.id in cooldowns:
-            remaining = cooldowns[member.id] - now
-            if remaining > 0:
-                hours = int(remaining // 3600)
-                minutes = int((remaining % 3600) // 60)
-                await interaction.response.send_message(
-                    f"⏳ Tu dois attendre {hours}h {minutes}min avant une nouvelle inscription.",
-                    ephemeral=True
-                )
-                return
-
         existing_channel = discord.utils.get(
             guild.text_channels,
             name=f"ticket-{member.id}"
@@ -288,23 +242,10 @@ class TicketSelect(discord.ui.Select):
             overwrites=overwrites
         )
 
-        if self.values[0] == "Inscription Académique":
-            cooldowns[member.id] = now + COOLDOWN_DURATION
-
-        if self.values[0] == "Demande Staff":
-            await channel.send(
-                f"👨‍🏫 Demande Staff\n\n{member.mention}, quelle est ta demande ?",
-                view=CloseTicketView()
-            )
-        else:
-            await channel.send(
-                f"📊 Inscription Académique\n\n"
-                f"• Rang actuel ?\n"
-                f"• Poste principal ?\n"
-                f"• Objectif ?\n"
-                f"• Games/semaine ?",
-                view=ValidateInscriptionView(member)
-            )
+        await channel.send(
+            f"{member.mention} ticket créé.",
+            view=CloseTicketView()
+        )
 
         await interaction.response.send_message("✅ Ticket créé !", ephemeral=True)
 
