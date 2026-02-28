@@ -27,10 +27,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # =========================
 
 def charger_fiches():
-    if os.path.exists(FICHIER):
+    if not os.path.exists(FICHIER):
+        return {}
+
+    try:
         with open(FICHIER, "r") as f:
             return json.load(f)
-    return {}
+    except json.JSONDecodeError:
+        print("⚠ JSON corrompu.")
+        return {}
 
 def sauvegarder_fiches(data):
     with open(FICHIER, "w") as f:
@@ -89,15 +94,94 @@ async def voirfiche(ctx, member: discord.Member):
         color=discord.Color.gold()
     )
 
-    embed.add_field(name="👨‍🏫 Prof", value=data["prof"], inline=False)
-    embed.add_field(name="🏅 Rang", value=data["rang"] or "Non défini", inline=False)
-    embed.add_field(name="🎯 Objectif", value=data["objectif"] or "Non défini", inline=False)
-    embed.add_field(name="🧭 Poste", value=data["poste"] or "Non défini", inline=False)
-    embed.add_field(name="💪 Points forts", value=data["points_forts"] or "Non défini", inline=False)
-    embed.add_field(name="⚠ Points faibles", value=data["points_faibles"] or "Non défini", inline=False)
-    embed.set_footer(text=data["maj"])
+    embed.add_field(name="👨‍🏫 Prof", value=data.get("prof", "Non défini"), inline=False)
+    embed.add_field(name="🏅 Rang", value=data.get("rang", "Non défini"), inline=False)
+    embed.add_field(name="🎯 Objectif", value=data.get("objectif", "Non défini"), inline=False)
+    embed.add_field(name="🧭 Poste", value=data.get("poste", "Non défini"), inline=False)
+    embed.add_field(name="💪 Points forts", value=data.get("points_forts", "Non défini"), inline=False)
+    embed.add_field(name="⚠ Points faibles", value=data.get("points_faibles", "Non défini"), inline=False)
+    embed.set_footer(text=data.get("maj", ""))
 
     await ctx.send(embed=embed)
+
+# =========================
+# PANEL FICHES EQUIPES
+# =========================
+
+class TeamSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Equipe 1", emoji="🛡"),
+            discord.SelectOption(label="Equipe 2", emoji="⚔"),
+            discord.SelectOption(label="Equipe 3", emoji="🏆")
+        ]
+        super().__init__(
+            placeholder="Choisis une équipe...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+
+        fiches = charger_fiches()
+
+        if "equipes" not in fiches:
+            await interaction.response.send_message("❌ Aucune équipe configurée.", ephemeral=True)
+            return
+
+        equipe_key = self.values[0].lower().replace(" ", "")
+
+        if equipe_key not in fiches["equipes"]:
+            await interaction.response.send_message("❌ Équipe introuvable.", ephemeral=True)
+            return
+
+        data = fiches["equipes"][equipe_key]
+
+        joueurs_list = "\n".join(
+            [f"{i+1}. {j}" for i, j in enumerate(data.get("joueurs", []))]
+        ) or "Non défini"
+
+        embed = discord.Embed(
+            title=f"🏆 {data.get('nom', 'Equipe')}",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(name="📅 Date de création", value=data.get("date_creation", "Non défini"), inline=False)
+        embed.add_field(name="🎯 Objectif", value=data.get("objectif", "Non défini"), inline=False)
+        embed.add_field(name="👨‍🏫 Coach", value=data.get("coach", "Non défini"), inline=False)
+        embed.add_field(name="📋 Manager", value=data.get("manager", "Non défini"), inline=False)
+        embed.add_field(name="👥 Joueurs", value=joueurs_list, inline=False)
+        embed.add_field(name="ℹ Information sur l'équipe", value=data.get("info", "Non défini"), inline=False)
+        embed.set_footer(text=data.get("maj", ""))
+
+        await interaction.response.send_message(embed=embed)
+
+class TeamView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TeamSelect())
+
+@bot.command()
+async def teampanel(ctx):
+
+    fiches = charger_fiches()
+
+    if "equipes" not in fiches:
+        fiches["equipes"] = {
+            "equipe1": {"nom":"Equipe 1","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""},
+            "equipe2": {"nom":"Equipe 2","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""},
+            "equipe3": {"nom":"Equipe 3","date_creation":"","objectif":"","coach":"","manager":"","joueurs":["","","","",""],"info":"","maj":""}
+        }
+        sauvegarder_fiches(fiches)
+
+    embed = discord.Embed(
+        title="🏆 Fiches des Équipes",
+        description="Sélectionne une équipe pour voir sa fiche.",
+        color=discord.Color.blue()
+    )
+
+    await ctx.send(embed=embed, view=TeamView())
 
 # =========================
 # TICKET SYSTEM
@@ -145,41 +229,6 @@ class ValidateInscriptionView(discord.ui.View):
         await asyncio.sleep(3)
         await interaction.channel.delete()
 
-    @discord.ui.button(label="❌ Refuser l'inscription", style=discord.ButtonStyle.danger)
-    async def refuse(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        if "Staff" not in [r.name for r in interaction.user.roles]:
-            await interaction.response.send_message("❌ Réservé au Staff.", ephemeral=True)
-            return
-
-        await interaction.response.send_message(
-            "📝 Écris le MOTIF du refus dans ce salon (5 minutes).",
-            ephemeral=True
-        )
-
-        def check(m):
-            return m.author == interaction.user and m.channel == interaction.channel
-
-        try:
-            msg = await bot.wait_for("message", timeout=300.0, check=check)
-            motif = msg.content
-        except:
-            await interaction.followup.send("❌ Temps écoulé. Refus annulé.")
-            return
-
-        try:
-            await self.member.send(f"❌ Ton inscription a été REFUSÉE.\n\n📌 Motif : {motif}")
-        except:
-            pass
-
-        await interaction.followup.send(
-            f"❌ Inscription refusée pour {self.member.mention}\n📌 Motif : {motif}"
-        )
-
-        await interaction.channel.send("🔒 Fermeture du ticket dans 3 secondes...")
-        await asyncio.sleep(3)
-        await interaction.channel.delete()
-
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
@@ -199,7 +248,6 @@ class TicketSelect(discord.ui.Select):
 
         now = time.time()
 
-        # Cooldown uniquement pour inscription
         if member.id in cooldowns:
             remaining = cooldowns[member.id] - now
             if remaining > 0:
@@ -273,5 +321,9 @@ async def ticketpanel(ctx):
         color=discord.Color.gold()
     )
     await ctx.send(embed=embed, view=TicketView())
+
+# =========================
+# LANCEMENT
+# =========================
 
 bot.run(TOKEN)
