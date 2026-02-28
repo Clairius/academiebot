@@ -105,12 +105,26 @@ async def voirfiche(ctx, member: discord.Member):
     await ctx.send(embed=embed)
 
 # =========================
-# RAPPORT EQUIPE
+# RAPPORT EQUIPE SECURISE
 # =========================
 
 @bot.command(name="rapport")
-@commands.has_role("Capitaine")
-async def rapport(ctx, equipe: str, *, contenu: str):
+async def rapport(ctx, equipe: discord.Role = None, *, contenu: str = None):
+
+    # Vérification arguments
+    if equipe is None or contenu is None:
+        await ctx.send("❌ Utilisation : `!rapport @NomEquipe contenu du rapport`")
+        return
+
+    # Vérifie rôle Capitaine
+    if not any(role.name == "Capitaine" for role in ctx.author.roles):
+        await ctx.send("❌ Tu dois être Capitaine pour faire un rapport.")
+        return
+
+    # 🔥 Vérification que le capitaine appartient à l'équipe mentionnée
+    if equipe not in ctx.author.roles:
+        await ctx.send("❌ Tu n'es pas le capitaine de cette équipe.")
+        return
 
     guild = ctx.guild
 
@@ -121,7 +135,7 @@ async def rapport(ctx, equipe: str, *, contenu: str):
         await ctx.send("❌ Rôles Direction ou Manager introuvables.")
         return
 
-    # Vérifie si le salon existe
+    # Vérifie si le salon rapport existe
     rapport_channel = discord.utils.get(guild.text_channels, name="rapport")
 
     # Création automatique si inexistant
@@ -139,11 +153,12 @@ async def rapport(ctx, equipe: str, *, contenu: str):
         )
 
     embed = discord.Embed(
-        title=f"📋 Rapport - {equipe}",
+        title=f"📋 Rapport - {equipe.name}",
         color=discord.Color.red(),
         timestamp=datetime.now()
     )
 
+    embed.add_field(name="🏷 Équipe", value=equipe.mention, inline=False)
     embed.add_field(name="👤 Capitaine", value=ctx.author.mention, inline=False)
     embed.add_field(name="📝 Contenu", value=contenu, inline=False)
 
